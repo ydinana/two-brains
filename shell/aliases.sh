@@ -21,7 +21,7 @@ _ollama_up() {
 # Plain Claude without the claude.ai connectors (Gmail, Notion, Drive and so on). Every connector adds
 # tool definitions to the start of each session. In our test that cost about 11K input tokens
 # per session (24.7K to 13.4K for a one word prompt). Use it for coding sessions that need no connectors.
-claude-lean() { ENABLE_CLAUDEAI_MCP_SERVERS=false claude "$@"; }
+claude-lean() { TWO_BRAINS_MODE=lean ENABLE_CLAUDEAI_MCP_SERVERS=false claude "$@"; }
 
 # Claude plus local models. Claude Code on your normal plan, with the local helper loaded:
 # the bridge tools (--mcp-config) and the delegation rules (--append-system-prompt-file).
@@ -30,7 +30,7 @@ claude-local() {
   _ollama_up
   local py="$TWO_BRAINS_HOME/bridge/.venv/bin/python" srv="$TWO_BRAINS_HOME/bridge/local_llm_mcp.py"
   if [ ! -x "$py" ]; then echo "Bridge not installed. Run ./install.sh in $TWO_BRAINS_HOME"; return 1; fi
-  claude \
+  TWO_BRAINS_MODE=local claude \
     --mcp-config "{\"mcpServers\":{\"local-llm\":{\"command\":\"$py\",\"args\":[\"$srv\"]}}}" \
     --append-system-prompt-file "$TWO_BRAINS_HOME/claude/delegation-rules.md" "$@"
 }
@@ -40,6 +40,8 @@ claude-local() {
 claude-private() {
   _ollama_up
   (
+    # Label for the status line
+    export TWO_BRAINS_MODE=private
     # Send every model request to local Ollama, not Anthropic
     export ANTHROPIC_BASE_URL="http://localhost:11434"
     export ANTHROPIC_AUTH_TOKEN="ollama"

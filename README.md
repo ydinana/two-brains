@@ -105,6 +105,7 @@ Then open a new Terminal window. A two page guide to every run mode is in [docs/
 | `ai-status` | Shows installed models, what is loaded in memory, and the one-model limit. |
 | `ai-stop` | Unloads every model to free RAM. |
 | `ai-stats` | Delegation stats from the bridge log: calls, success and fallback rate, tokens handled locally. `ai-stats 7` for the last 7 days. |
+| (status line) | A bar in every session showing the mode, model, session tokens and local calls. See below. |
 
 Example prompts in a `claude-local` session:
 
@@ -117,6 +118,24 @@ Extract the invoice fields from these PDFs. local only  -> local tools only, sto
 Per project, add one line to that project's `CLAUDE.md`: `Delegation: off` or `Delegation: prefer`.
 
 To see which model did the work, run `ai-stats` for totals or `tail -5 bridge/bridge.log` for the latest calls. Stats count bridge calls only: if Claude rewrites a weak draft after review, that is not logged.
+
+### Status line: always know which brain you are in
+
+Every Claude Code session shows a bar at the bottom, set up by `./install.sh`:
+
+```
+● LOCAL+CLAUDE │ Opus │ in 41.2K  out 3.1K  cache 212K │ local 4 │ ctx 18% │ 5h 23%
+```
+
+| Part | Meaning |
+|---|---|
+| `● LEAN` / `● LOCAL+CLAUDE` / `● PRIVATE offline` / `● CLAUDE` | Which command started the session (green, cyan, magenta, yellow) |
+| `in` / `out` / `cache` | Exact Claude tokens this session: new input, output, and cheap cache re-reads |
+| `local 4` | Jobs handed to the local model this session (`claude-local` only) |
+| `ctx` | How full the context window is |
+| `5h` | How much of your 5 hour plan limit is used (Pro and Max plans) |
+
+If a session points at a local server, the bar shows `PRIVATE offline` whatever the label says, and the token counts are local, not cloud. The script is `shell/statusline.py`, standard library only, and it reads the same session logs as `ai-stats sessions`. If you already had your own status line, the installer leaves it alone.
 
 ## Privacy model
 

@@ -22,7 +22,7 @@ add_line_once() {  # add_line_once <file> <line> <marker>: skip if any line alre
   if grep -qF "$3" "$1"; then ok "already in $1"; else printf '%s\n' "$2" >> "$1"; ok "added to $1"; fi
 }
 
-step "1/8 Checking tools"
+step "1/9 Checking tools"
 [[ "$(uname -s)" == "Darwin" ]] || die "This script is for macOS."
 command -v brew >/dev/null || die "Homebrew is missing. Install it from https://brew.sh and rerun."
 command -v claude >/dev/null || die "Claude Code is missing. Install it and log in, then rerun."
@@ -31,7 +31,7 @@ PY="$(command -v python3 || true)"
   || die "Python 3.10 or newer is needed. Run: brew install python"
 ok "macOS, Homebrew, Claude Code, $("$PY" --version)"
 
-step "2/8 Ollama"
+step "2/9 Ollama"
 if ! command -v ollama >/dev/null; then brew install --cask ollama-app; fi
 if ! curl -s localhost:11434 >/dev/null; then
   open -a Ollama
@@ -40,7 +40,7 @@ fi
 curl -s localhost:11434 >/dev/null || die "Ollama did not start. Open the Ollama app and rerun."
 ok "Ollama running"
 
-step "3/8 Models"
+step "3/9 Models"
 if has_model "$SMALL_BASE"; then ok "$SMALL_BASE present"; else caffeinate -i ollama pull "$SMALL_BASE"; fi
 if has_model "$SMALL"; then ok "$SMALL present"; else ollama create "$SMALL" -f "$REPO/ollama/Modelfile.qwen3.5-9b-64k"; fi
 if [[ $WITH_27B -eq 1 ]]; then
@@ -49,13 +49,13 @@ else
   ok "skipping $BIG (--skip-27b)"
 fi
 
-step "4/8 Bridge Python environment"
+step "4/9 Bridge Python environment"
 if [[ ! -x "$REPO/bridge/.venv/bin/python" ]]; then "$PY" -m venv "$REPO/bridge/.venv"; fi
 "$REPO/bridge/.venv/bin/pip" install -q --disable-pip-version-check -r "$REPO/bridge/requirements.txt"
 (cd "$REPO/bridge" && .venv/bin/python -c "import local_llm_mcp") || die "Bridge failed to import."
 ok "bridge imports"
 
-step "5/8 Bridge wiring"
+step "5/9 Bridge wiring"
 # The bridge loads only in claude-local (through --mcp-config), so plain claude stays untouched.
 # Older versions registered it globally; remove that so plain claude has no local models.
 if claude mcp get local-llm >/dev/null 2>&1; then
@@ -64,12 +64,12 @@ if claude mcp get local-llm >/dev/null 2>&1; then
 fi
 ok "bridge loads only in claude-local"
 
-step "6/8 Shell shortcuts (claude-local, claude-private, ai-stop, ai-status)"
+step "6/9 Shell shortcuts (claude-local, claude-private, ai-stop, ai-status)"
 SRC_LINE="source \"$REPO/shell/aliases.sh\""
 add_line_once "$HOME/.bash_profile" "$SRC_LINE" "shell/aliases.sh"
 add_line_once "$HOME/.zshrc" "$SRC_LINE" "shell/aliases.sh"
 
-step "7/8 Private rules for Claude Code"
+step "7/9 Private rules for Claude Code"
 mkdir -p "$HOME/.claude"
 # Older versions imported the delegation rules globally; claude-local now loads them itself.
 if [[ -f "$HOME/.claude/CLAUDE.md" ]] && grep -qF "claude/delegation-rules.md" "$HOME/.claude/CLAUDE.md"; then
@@ -83,7 +83,7 @@ if [[ ! -f "$REPO/claude/private-rules.md" ]]; then
 fi
 add_line_once "$HOME/.claude/CLAUDE.md" "@$REPO/claude/private-rules.md" "claude/private-rules.md"
 
-step "8/8 Ollama memory setting (one model loaded at a time)"
+step "8/9 Ollama memory setting (one model loaded at a time)"
 PLIST="com.localaistack.ollama-env.plist"
 DST="$HOME/Library/LaunchAgents/$PLIST"
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -100,6 +100,31 @@ if [[ "$(launchctl getenv OLLAMA_MAX_LOADED_MODELS)" != "1" ]]; then
   echo "    NOTE: quit Ollama from the menu bar and reopen it to apply this setting."
 fi
 ok "OLLAMA_MAX_LOADED_MODELS=$(launchctl getenv OLLAMA_MAX_LOADED_MODELS)"
+
+step "9/9 Status line (shows which brain you are in, tokens and local calls)"
+"$PY" - "$HOME/.claude/settings.json" "$REPO/shell/statusline.py" "$PY" <<'PYEOF'
+import json, shutil, sys
+from pathlib import Path
+p, script, py = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+cmd = f'"{py}" "{script}"'
+data = {}
+if p.exists():
+    try:
+        data = json.loads(p.read_text() or "{}")
+    except ValueError:
+        print(f"    NOTE: {p} is not valid JSON, status line not added"); sys.exit(0)
+cur = (data.get("statusLine") or {}).get("command", "")
+if cur == cmd:
+    print("    ok: status line already set"); sys.exit(0)
+if cur and "statusline.py" not in cur:
+    print(f"    NOTE: you already have your own status line, left it alone: {cur}"); sys.exit(0)
+if p.exists():
+    shutil.copy(p, str(p) + ".bak")
+data["statusLine"] = {"type": "command", "command": cmd}
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(json.dumps(data, indent=2) + "\n")
+print(f"    ok: status line added to {p}")
+PYEOF
 
 step "Done"
 ollama list
