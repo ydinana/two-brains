@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Login item: reapplies Ollama settings at every login, because
+     `launchctl setenv` is lost on reboot. Installed by install.sh into
+     ~/Library/LaunchAgents. Keep only one model in memory at a time (24 GB Mac). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.localaistack.ollama-env</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/launchctl</string>
+    <string>setenv</string>
+    <string>OLLAMA_MAX_LOADED_MODELS</string>
+    <string>1</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>

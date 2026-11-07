@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+*.log
+data/
+
+# Personal, never published
+claude/private-rules.md
+docs/context.md
