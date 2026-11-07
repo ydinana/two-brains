@@ -30,8 +30,10 @@ claude-local() {
   _ollama_up
   local py="$TWO_BRAINS_HOME/bridge/.venv/bin/python" srv="$TWO_BRAINS_HOME/bridge/local_llm_mcp.py"
   if [ ! -x "$py" ]; then echo "Bridge not installed. Run ./install.sh in $TWO_BRAINS_HOME"; return 1; fi
-  TWO_BRAINS_MODE=local claude \
-    --mcp-config "{\"mcpServers\":{\"local-llm\":{\"command\":\"$py\",\"args\":[\"$srv\"]}}}" \
+  # A run id shared by the bridge and the status line, so the status line can show this run's local work
+  local run="$(date +%s)-$$"
+  TWO_BRAINS_MODE=local TWO_BRAINS_RUN="$run" claude \
+    --mcp-config "{\"mcpServers\":{\"local-llm\":{\"command\":\"$py\",\"args\":[\"$srv\"],\"env\":{\"TWO_BRAINS_RUN\":\"$run\"}}}}" \
     --append-system-prompt-file "$TWO_BRAINS_HOME/claude/delegation-rules.md" "$@"
 }
 

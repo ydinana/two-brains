@@ -4,7 +4,14 @@
 Shows which brain you are in, the model, this session's exact token usage,
 how many jobs went to the local model, context fill and plan usage:
 
-  ● LOCAL+CLAUDE │ Opus │ in 41.2K  out 3.1K  cache 212K │ local 4 │ ctx 18% │ 5h 23%
+  ● LOCAL+CLAUDE │ Opus │ in 41.2K  out 3.1K  cache 212K │ local 3 │ ctx 18% │ 5h 23%
+  claude    ████░░░░░░░░░░░░░░░░   44.3K  exact, cloud
+  qwen 9B   ████████████████████  161.0K  est, 3 calls, 2m25s, on this Mac
+  qwen 27B  ░░░░░░░░░░░░░░░░░░░░       0
+
+The bars appear in claude-local and claude-private, the modes where a local model can work.
+Claude's bar counts new input plus output (cache re-reads are cheap and left out). The local
+bars come from bridge/bridge.log, filtered to this run by TWO_BRAINS_RUN, and are estimates.
 
 Claude Code runs this after each message and passes session data as JSON on stdin.
 The mode comes from TWO_BRAINS_MODE, which the claude-lean, claude-local and
@@ -17,6 +24,7 @@ import json
 import os
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 RESET = "\033[0m"
@@ -102,6 +110,86 @@ def session_usage(transcript, session_id):
     }
 
 
+BRIDGE_LOG = Path(__file__).resolve().parent.parent / "bridge" / "bridge.log"
+BAR_WIDTH = 20
+ROWS = [  # label, color
+    ("claude", "\033[33m"),    # yellow
+    ("qwen 9B", "\033[36m"),   # cyan
+    ("qwen 27B", "\033[35m"),  # magenta
+]
+
+
+def session_start_local(transcript):
+    """First timestamp of the transcript (UTC in the file) as naive local time, like bridge.log."""
+    try:
+        with open(transcript, "rb") as f:
+            for _ in range(20):
+                d = json.loads(f.readline() or b"{}")
+                ts = d.get("timestamp")
+                if ts:
+                    return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def local_usage(run_id, since):
+    """Work the local models did for this claude-local run, from the bridge log (estimates)."""
+    use = {"qwen 9B": [0, 0, 0.0], "qwen 27B": [0, 0, 0.0]}  # tokens, calls, seconds
+    if not run_id or not BRIDGE_LOG.is_file():
+        return use
+    for line in BRIDGE_LOG.read_text(errors="replace").splitlines():
+        if run_id not in line:
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if r.get("run") != run_id or r.get("tool") == "local_report" or not r.get("ok"):
+            continue
+        if since:
+            try:
+                if datetime.fromisoformat(r["ts"]) < since:
+                    continue  # from an earlier session in the same run (after /clear)
+            except (KeyError, ValueError):
+                pass
+        row = "qwen 27B" if "27b" in str(r.get("model", "")).lower() else "qwen 9B"
+        use[row][0] += r.get("in_tokens_est", 0) + r.get("out_tokens_est", 0)
+        use[row][1] += 1
+        use[row][2] += r.get("seconds", 0)
+    return use
+
+
+def duration(s):
+    s = int(s)
+    return f"{s // 60}m{s % 60:02d}s" if s >= 60 else f"{s}s"
+
+
+def bars(mode, u, data):
+    """One bar per brain, scaled to the busiest one."""
+    claude_tokens = (u["fresh"] + u["out"]) if u else 0
+    if mode == "private":  # Claude Code itself is talking to the local 9B
+        use = {"qwen 9B": [claude_tokens, 0, 0.0], "qwen 27B": [0, 0, 0.0]}
+        values = {"claude": 0, **{k: v[0] for k, v in use.items()}}
+        notes = {"claude": "cloud, unused", "qwen 9B": "this session, on this Mac", "qwen 27B": ""}
+    else:
+        use = local_usage(os.environ.get("TWO_BRAINS_RUN"),
+                          session_start_local(data.get("transcript_path")))
+        values = {"claude": claude_tokens, **{k: v[0] for k, v in use.items()}}
+        notes = {"claude": "exact, cloud"}
+        for k, (tok, calls, secs) in use.items():
+            notes[k] = f"est, {calls} call{'s' * (calls != 1)}, {duration(secs)}, on this Mac" if calls else ""
+    top = max(values.values()) or 1
+    lines = []
+    for label, color in ROWS:
+        v = values[label]
+        filled = max(1, round(BAR_WIDTH * v / top)) if v else 0  # any work shows at least one block
+        bar = f"{color}{'█' * filled}{RESET}{DIM}{'░' * (BAR_WIDTH - filled)}{RESET}"
+        note = f"  {DIM}{notes[label]}{RESET}" if notes[label] else ""
+        lines.append(f"{label:<9} {bar} {human(v):>7}{note}")
+    return lines
+
+
 def build(data):
     mode = detect_mode()
     label, color = MODES[mode]
@@ -128,7 +216,13 @@ def build(data):
     five = ((data.get("rate_limits") or {}).get("five_hour") or {}).get("used_percentage")
     if five is not None and mode != "private":
         parts.append(f"5h {int(five)}%")
-    return " │ ".join(parts)
+    out = [" │ ".join(parts)]
+    if mode in ("local", "private"):  # the only modes where a local model can work
+        try:
+            out += bars(mode, u, data)
+        except Exception:
+            pass  # keep the main line even if the bars fail
+    return "\n".join(out)
 
 
 def main():

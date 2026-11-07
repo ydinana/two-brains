@@ -76,6 +76,9 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _write_log(row: dict) -> None:
+    run = os.environ.get("TWO_BRAINS_RUN")  # set by claude-local, lets the status line show this run only
+    if run:
+        row["run"] = run
     try:
         with LOG_FILE.open("a") as f:
             f.write(json.dumps(row) + "\n")

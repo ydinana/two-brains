@@ -124,7 +124,10 @@ To see which model did the work, run `ai-stats` for totals or `tail -5 bridge/br
 Every Claude Code session shows a bar at the bottom, set up by `./install.sh`:
 
 ```
-● LOCAL+CLAUDE │ Opus │ in 41.2K  out 3.1K  cache 212K │ local 4 │ ctx 18% │ 5h 23%
+● LOCAL+CLAUDE │ Opus │ in 41.2K  out 3.1K  cache 212K │ local 3 │ ctx 18% │ 5h 23%
+claude    ████░░░░░░░░░░░░░░░░   44.3K  exact, cloud
+qwen 9B   ████████████████████  161.0K  est, 3 calls, 2m25s, on this Mac
+qwen 27B  ░░░░░░░░░░░░░░░░░░░░       0
 ```
 
 | Part | Meaning |
@@ -133,6 +136,7 @@ Every Claude Code session shows a bar at the bottom, set up by `./install.sh`:
 | `in` / `out` / `cache` | Exact Claude tokens this session: new input, output, and cheap cache re-reads |
 | `local 4` | Jobs handed to the local model this session (`claude-local` only) |
 | `ctx` | How full the context window is |
+| Bars (`claude-local`, `claude-private`) | Work done by each brain this session, scaled to the busiest one. Claude counts new input plus output, exact. The Qwen bars are estimates from the bridge log, for this run only |
 | `5h` | How much of your 5 hour plan limit is used (Pro and Max plans) |
 
 If a session points at a local server, the bar shows `PRIVATE offline` whatever the label says, and the token counts are local, not cloud. The script is `shell/statusline.py`, standard library only, and it reads the same session logs as `ai-stats sessions`. If you already had your own status line, the installer leaves it alone.
