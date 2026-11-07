@@ -9,7 +9,7 @@
 Two Brains connects Claude Code (on your Claude subscription) to local models running in Ollama on your Mac.
 Claude does the hard thinking. A local model takes the bulk chores. If the local model fails for any reason,
 Claude quietly does the job itself. When the data is sensitive, you switch to a fully offline Claude Code
-that never leaves your machine.
+that never leaves your machine. Plain `claude` stays exactly as it was.
 
 Built and tested on a MacBook Pro (Apple Silicon, 24 GB unified memory). Not affiliated with Anthropic, Ollama or Alibaba.
 
@@ -36,7 +36,7 @@ Three problems show up when you mix cloud and local models:
    Here, every failure reaches Claude as an error that says "Do this task yourself", so your work never stalls.
 2. **Sometimes you want cloud only, sometimes local only.** You can say "claude only" or "local only" per request,
    or set it per project.
-3. **Some data must never reach a cloud model.** `claude-local` runs Claude Code against Ollama only, with telemetry
+3. **Some data must never reach a cloud model.** `claude-private` runs Claude Code against Ollama only, with telemetry
    and connectors off and no MCP servers loaded.
 
 It deliberately has no auto router that guesses task difficulty. Fixed roles plus fallback on failure is simpler
@@ -45,28 +45,23 @@ and easier to trust.
 ## How it works
 
 ```
-                      you
-                       |
-        +--------------+---------------+
-        |                              |
-     claude                       claude-local
- (cloud, your plan)           (offline, nothing leaves)
-        |                              |
-        | MCP tool call                | local model only
-        v                              v
- +------------------+            +-----------+
- | delegation bridge|----------> |  Ollama   | <---- scripts/ (no Claude involved)
- +------------------+            +-----------+
-        |                              ^
-        | error (timeout, OOM, empty)  |
-        v                              |
- "Do this task yourself"          9B and 27B models
-        |
-        v
- Claude finishes the task and says so in one line
+     claude                claude-local              claude-private
+ (plain Claude)      (Claude + local models)       (local model only)
+       |                       |                          |
+ your plan only                | MCP tool call            | nothing leaves
+                               v                          v
+                    +------------------+          +-------------+
+                    | delegation bridge|--------> |   Ollama    | <--- scripts/
+                    +------------------+          +-------------+
+                               |  failure (timeout, out of memory, empty)
+                               v
+                     "Do this task yourself"
+                               |
+                               v
+          Claude finishes the task and says so in one line
 ```
 
-1. Claude decides a chore is bulk work (summarize, classify, extract, boilerplate) using `claude/delegation-rules.md`.
+1. In a `claude-local` session, Claude decides a chore is bulk work (summarize, classify, extract, boilerplate) using `claude/delegation-rules.md`.
 2. It calls a bridge tool. The bridge checks input size, calls Ollama on localhost with a timeout, and treats empty answers as errors.
 3. Success: Claude reviews the result and adds a one line note, for example "(local 9B: summarize, 7s)".
 4. Failure: the bridge returns a clear error and Claude does the task itself.
@@ -91,23 +86,25 @@ The installer is safe to rerun: every step checks first and skips what is alread
 2. Install and start Ollama
 3. Download the models and build the 64K context variant
 4. Create the bridge's Python environment
-5. Register the bridge with Claude Code (`local-llm`, user scope)
+5. Check the bridge (it loads only in `claude-local`; plain `claude` is left alone)
 6. Add the shell shortcuts to `~/.bash_profile` and `~/.zshrc`
-7. Load the delegation rules and your private rules into `~/.claude/CLAUDE.md`
+7. Load your private rules into `~/.claude/CLAUDE.md`
 8. Limit Ollama to one loaded model, reapplied at every login
 
-Then open a new Terminal window.
+Then open a new Terminal window. A two page guide to every run mode is in [docs/how-to-run.pdf](docs/how-to-run.pdf).
 
 ## Daily use
 
 | Command | What it does |
 |---|---|
-| `claude` | Normal Claude Code. It can now hand bulk chores to the local model. |
-| `claude-local` | Claude Code on the local model. Works offline. Use it for private data. |
+| `claude` | Plain Claude Code, exactly as before. No local models. |
+| `claude-local` | Claude plus local models: bulk chores go to the local model, failures fall back to Claude. |
+| `claude-private` | Claude Code on the local model only. Works offline. Use it for sensitive data. |
+| `ollama run qwen3.5:9b-64k` | Plain chat with Qwen (or `qwen3.8:27b-mlx` for hard, short questions). No Claude. |
 | `ai-status` | Shows installed models, what is loaded in memory, and the one-model limit. |
 | `ai-stop` | Unloads every model to free RAM. |
 
-Example prompts in a normal `claude` session:
+Example prompts in a `claude-local` session:
 
 ```
 Summarize this 3,000 line log file.                    -> delegated to the 9B, reviewed by Claude
@@ -117,15 +114,24 @@ Extract the invoice fields from these PDFs. local only  -> local tools only, sto
 
 Per project, add one line to that project's `CLAUDE.md`: `Delegation: off` or `Delegation: prefer`.
 
+To see which model did the work, check `tail -5 bridge/bridge.log` (model, seconds, success or failure per call).
+
 ## Privacy model
 
 Delegation through Claude is **not** private, because Claude sees everything it sends to the local model.
-Real privacy comes from `claude-local`, which:
+Real privacy comes from `claude-private`, which:
 
 - sends model requests to local Ollama only
 - turns off telemetry, nonessential traffic and claude.ai connectors
 - loads no MCP servers (`--strict-mcp-config`)
 - runs in default permission mode (auto mode needs a network and does not work offline)
+
+### Why the 9B and not the 27B
+
+Claude Code needs a large context window (about 64K tokens) because it reads files and tool instructions. The 9B
+runs that comfortably (7.7 GB loaded). The 27B takes 18 GB of a 24 GB Mac and crashed with out of memory errors on
+large inputs, which is what an agent produces. Use the 27B for short questions in a plain `ollama run` chat.
+`claude-private` is much less capable than Claude, so use it when privacy matters more than quality.
 
 Your own sensitive categories go in `claude/private-rules.md`. The installer creates it from
 `claude/private-rules.example.md` and loads it into Claude Code. It is git ignored, so it never leaves your machine.
@@ -134,7 +140,7 @@ Your own sensitive categories go in `claude/private-rules.md`. The installer cre
 
 | Name | Base | Use |
 |---|---|---|
-| `qwen3.5:9b-64k` | `qwen3.5:9b` with a 64K context window | Everyday worker, `claude-local`, long inputs. About 7.7 GB loaded. |
+| `qwen3.5:9b-64k` | `qwen3.5:9b` with a 64K context window | Everyday worker, `claude-private`, long inputs. About 7.7 GB loaded. |
 | `qwen3.8:27b-mlx` | as downloaded, about 18 GB | Harder questions on short inputs only. The bridge caps it at about 3K tokens. |
 
 On a 24 GB Mac, the large model leaves little headroom and crashes on big inputs, so it is capped. Ollama is limited
@@ -154,11 +160,12 @@ The bridge talks to localhost only, has no file or shell access, retries nothing
 | Path | What |
 |---|---|
 | `install.sh` | Idempotent installer |
-| `shell/aliases.sh` | `claude-local`, `ai-stop`, `ai-status` |
+| `shell/aliases.sh` | `claude-private`, `ai-stop`, `ai-status` |
 | `bridge/` | The MCP server and its requirements |
 | `claude/` | Delegation rules and the private rules example |
 | `ollama/` | Modelfile and the login item that limits Ollama to one loaded model |
 | `scripts/` | Space for Python automations that call Ollama directly, with no Claude involved |
+| `docs/how-to-run.pdf` | Two page guide: every way to run it (cloud, local, fallback) |
 | `docs/architecture.md` | Design decisions and the reasons behind them |
 | `docs/troubleshooting.md` | Fixes for problems seen in real use |
 
@@ -179,11 +186,10 @@ The bridge talks to localhost only, has no file or shell access, retries nothing
 ## Uninstall
 
 1. Remove the lines containing `two-brains` from `~/.bash_profile` and `~/.zshrc`.
-2. Remove the `@.../claude/delegation-rules.md` and `@.../claude/private-rules.md` lines from `~/.claude/CLAUDE.md`.
-3. `claude mcp remove local-llm -s user`
-4. `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.localaistack.ollama-env.plist && rm ~/Library/LaunchAgents/com.localaistack.ollama-env.plist`
-5. `ollama rm qwen3.5:9b-64k qwen3.5:9b qwen3.8:27b-mlx`
-6. Delete the repo folder.
+2. Remove the `@.../claude/private-rules.md` line from `~/.claude/CLAUDE.md`.
+3. `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.localaistack.ollama-env.plist && rm ~/Library/LaunchAgents/com.localaistack.ollama-env.plist`
+4. `ollama rm qwen3.5:9b-64k qwen3.5:9b qwen3.8:27b-mlx`
+5. Delete the repo folder.
 
 ## Known limits
 

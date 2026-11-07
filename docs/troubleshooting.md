@@ -16,12 +16,9 @@ rm -rf bridge/.venv
 ./install.sh
 ```
 
-## Registration points at the old folder after a move
-```
-claude mcp remove local-llm -s user
-./install.sh
-```
-Also update any `two-brains` paths in `~/.bash_profile`, `~/.zshrc` and `~/.claude/CLAUDE.md`.
+## `claude-local` says "Bridge not installed"
+The bridge environment is missing or was built for another folder. Run `./install.sh` inside the repo (after
+`rm -rf bridge/.venv` if you moved the folder). Also update any `two-brains` paths in `~/.bash_profile` and `~/.zshrc`.
 
 ## `ai-status` shows "Max models loaded at once: not set"
 The setting is lost on reboot unless the login item is installed. Rerun `./install.sh`, then quit Ollama
@@ -36,11 +33,11 @@ a cloud icon means it runs on Ollama's servers, not on your Mac. Remove extras w
 The input was too large for the model. The bridge caps the 27B at about 3K tokens for this reason. Use the 9B
 for long text, or split the input. Ollama recovers on its own; no restart needed.
 
-## Auto mode fails in `claude-local`
+## Auto mode fails in `claude-private`
 Auto mode needs a network classifier, so it cannot work offline. Use default permission mode, or press
 Shift+Tab to accept edits.
 
-## `claude-local` is slow to answer
+## `claude-private` is slow to answer
 Thinking is limited but small models may still think a little. Keep prompts focused, and give the model
 specific files rather than the whole repo.
 

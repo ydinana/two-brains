@@ -1,8 +1,8 @@
 # Local model delegation rules
 
-These rules apply when the `local-llm` MCP tools (`local_summarize`, `local_classify`,
+These rules are loaded by the `claude-local` command. They apply when the `local-llm` MCP tools (`local_summarize`, `local_classify`,
 `local_extract`, `local_run`, `local_status`) are available. If they are not available
-(for example in a `claude-local` session), ignore this whole section.
+(for example in a `claude-private` session), ignore this whole section.
 
 ## When to delegate
 
@@ -44,7 +44,7 @@ input too large):
 - "claude only" in a request: do not use any local tool for that request.
 - "local only" in a request: use local tools for the content work. If they fail, stop and
   tell the user instead of doing it yourself. Remind them that this is still not private,
-  because you see the text; for private work they should use `claude-local`.
+  because you see the text; for private work they should use `claude-private`.
 - A project CLAUDE.md line "Delegation: off" disables these tools for that project.
   "Delegation: prefer" means delegate whenever a task fits the list above.
 
@@ -55,4 +55,4 @@ input too large):
   `claude/private-rules.md`, which is local to this machine and not part of the repo) in a
   normal Claude session.
 - If a file, folder, or request looks sensitive (client or employer data, credentials,
-  personal documents), stop and ask before reading it, and suggest `claude-local` instead.
+  personal documents), stop and ask before reading it, and suggest `claude-private` instead.

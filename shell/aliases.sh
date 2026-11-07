@@ -2,6 +2,11 @@
 # ./install.sh adds a line like this to ~/.bash_profile and ~/.zshrc:
 #   source "/path/to/two-brains/shell/aliases.sh"
 
+# Find the repo folder so claude-local can load the bridge from it (bash and zsh).
+if [ -n "${BASH_VERSION:-}" ]; then _TB_SELF="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_VERSION:-}" ]; then eval '_TB_SELF=${(%):-%x}'; fi
+TWO_BRAINS_HOME="$(cd "$(dirname "$_TB_SELF")/.." && pwd)"
+
 LOCAL_AI_MODEL="qwen3.5:9b-64k"
 LOCAL_AI_CONTEXT=65536   # must match num_ctx in ollama/Modelfile.qwen3.5-9b-64k
 
@@ -13,9 +18,21 @@ _ollama_up() {
   fi
 }
 
-# Claude Code running on the local model. Nothing leaves the Mac.
-# Runs in a subshell so these settings never leak into your normal `claude`.
+# Claude plus local models. Claude Code on your normal plan, with the local helper loaded:
+# the bridge tools (--mcp-config) and the delegation rules (--append-system-prompt-file).
+# Bulk chores go to the local model; any failure falls back to Claude. Plain `claude` is untouched.
 claude-local() {
+  _ollama_up
+  local py="$TWO_BRAINS_HOME/bridge/.venv/bin/python" srv="$TWO_BRAINS_HOME/bridge/local_llm_mcp.py"
+  if [ ! -x "$py" ]; then echo "Bridge not installed. Run ./install.sh in $TWO_BRAINS_HOME"; return 1; fi
+  claude \
+    --mcp-config "{\"mcpServers\":{\"local-llm\":{\"command\":\"$py\",\"args\":[\"$srv\"]}}}" \
+    --append-system-prompt-file "$TWO_BRAINS_HOME/claude/delegation-rules.md" "$@"
+}
+
+# Claude Code running on the local model only. Nothing leaves the Mac.
+# Runs in a subshell so these settings never leak into your normal `claude`.
+claude-private() {
   _ollama_up
   (
     # Send every model request to local Ollama, not Anthropic

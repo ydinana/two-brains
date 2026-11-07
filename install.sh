@@ -55,22 +55,27 @@ if [[ ! -x "$REPO/bridge/.venv/bin/python" ]]; then "$PY" -m venv "$REPO/bridge/
 (cd "$REPO/bridge" && .venv/bin/python -c "import local_llm_mcp") || die "Bridge failed to import."
 ok "bridge imports"
 
-step "5/8 Register bridge with Claude Code"
+step "5/8 Bridge wiring"
+# The bridge loads only in claude-local (through --mcp-config), so plain claude stays untouched.
+# Older versions registered it globally; remove that so plain claude has no local models.
 if claude mcp get local-llm >/dev/null 2>&1; then
-  ok "local-llm already registered"
-else
-  claude mcp add local-llm -s user -- "$REPO/bridge/.venv/bin/python" "$REPO/bridge/local_llm_mcp.py"
-  ok "local-llm registered"
+  claude mcp remove local-llm -s user >/dev/null 2>&1 || true
+  ok "removed old global registration"
 fi
+ok "bridge loads only in claude-local"
 
-step "6/8 Shell shortcuts (claude-local, ai-stop, ai-status)"
+step "6/8 Shell shortcuts (claude-local, claude-private, ai-stop, ai-status)"
 SRC_LINE="source \"$REPO/shell/aliases.sh\""
 add_line_once "$HOME/.bash_profile" "$SRC_LINE" "shell/aliases.sh"
 add_line_once "$HOME/.zshrc" "$SRC_LINE" "shell/aliases.sh"
 
-step "7/8 Delegation rules for Claude Code"
+step "7/8 Private rules for Claude Code"
 mkdir -p "$HOME/.claude"
-add_line_once "$HOME/.claude/CLAUDE.md" "@$REPO/claude/delegation-rules.md" "claude/delegation-rules.md"
+# Older versions imported the delegation rules globally; claude-local now loads them itself.
+if [[ -f "$HOME/.claude/CLAUDE.md" ]] && grep -qF "claude/delegation-rules.md" "$HOME/.claude/CLAUDE.md"; then
+  sed -i.bak '/claude\/delegation-rules\.md/d' "$HOME/.claude/CLAUDE.md" && rm -f "$HOME/.claude/CLAUDE.md.bak"
+  ok "removed old global delegation import"
+fi
 # Private rules stay on this machine (git ignored). Created from the example the first time.
 if [[ ! -f "$REPO/claude/private-rules.md" ]]; then
   cp "$REPO/claude/private-rules.example.md" "$REPO/claude/private-rules.md"
@@ -99,4 +104,4 @@ ok "OLLAMA_MAX_LOADED_MODELS=$(launchctl getenv OLLAMA_MAX_LOADED_MODELS)"
 step "Done"
 ollama list
 echo
-echo "Open a new Terminal window (or run: source ~/.bash_profile) to use claude-local."
+echo "Open a new Terminal window (or run: source ~/.bash_profile) to use claude-local and claude-private."
