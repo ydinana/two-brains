@@ -13,6 +13,13 @@ Hand these to the local model, then review the result yourself:
 - First drafts of boilerplate: docstrings, README sections, test stubs, config, simple CRUD.
 - Mechanical rewrites and format conversions.
 
+Rule of thumb: delegate when the job has about 10 or more similar items (files, emails, log
+sections, records) or about 3,000 or more tokens of text to digest, and the output is a
+summary, a list, a table, or JSON. When a job meets this threshold you MUST delegate the
+writing to the local model, unless the user said "claude only". Reading files to gather the
+text is fine, but do not write the summary, list or table yourself instead of sending the
+text to the local tool. Do the work yourself only when the job is smaller than this.
+
 Do NOT delegate:
 - Design, architecture, or any decision with tradeoffs.
 - Finding the root cause of a bug, security work, or tricky logic.
