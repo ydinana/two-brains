@@ -98,6 +98,7 @@ Then open a new Terminal window. A two page guide to every run mode is in [docs/
 | Command | What it does |
 |---|---|
 | `claude` | Plain Claude Code, exactly as before. No local models. |
+| `claude-lean` | Plain Claude without the claude.ai connectors. Starts with fewer input tokens (see below). |
 | `claude-local` | Claude plus local models: bulk chores go to the local model, failures fall back to Claude. |
 | `claude-private` | Claude Code on the local model only. Works offline. Use it for sensitive data. |
 | `ollama run qwen3.5:9b-64k` | Plain chat with Qwen (or `qwen3.8:27b-mlx` for hard, short questions). No Claude. |
@@ -149,11 +150,32 @@ to one loaded model (`OLLAMA_MAX_LOADED_MODELS=1`) because its own memory estima
 
 To use other models, edit `ollama/Modelfile.*`, `LOCAL_AI_MODEL` in `shell/aliases.sh`, and the `MODELS` table in `bridge/local_llm_mcp.py`.
 
+## Do you actually save Claude tokens?
+
+Measure it, do not assume it. Two commands:
+
+```
+ai-stats            # what the local model did, tokens it read that Claude never saw, review verdicts, fallback rate
+ai-stats sessions   # Claude's exact token usage per session (read from Claude Code's own logs)
+```
+
+`local_digest_files` lets the local model read files itself, so Claude only sees a short result. Whether that
+pays off depends on the job. Our first A/B test (one sentence on each of 62 Python files, same prompt in plain `claude`
+and in `claude-local`) did **not** save tokens: plain Claude skimmed docstrings cheaply, while the delegated run took
+more turns. It gave better grounded answers, but cost about 6% more fresh input and 29% more cache reads and output.
+The idea should pay off when Claude would otherwise read large files in full (big logs, long documents), and that is
+still to be measured. Run your own A/B with `ai-stats sessions`.
+
+The baseline matters more. A fresh Claude Code session costs tens of thousands of input tokens before you type
+anything (system prompt, tool lists, connectors). In our test, a one word prompt used 24,736 fresh input tokens with
+connectors on and 13,448 with them off, about 11K fewer per session. `claude-lean` starts Claude with the claude.ai
+connectors off. Keep plain `claude` for sessions where you need them. Measure yours with `ai-stats sessions`.
+
 ## Configuration
 
 Bridge environment variables: `LOCAL_LLM_URL`, `LOCAL_LLM_TIMEOUT` (default 180 s), `LOCAL_LLM_SMALL`, `LOCAL_LLM_BIG`.
 
-The bridge talks to localhost only, has no file or shell access, retries nothing, and logs metadata
+The bridge talks to localhost only, has no shell access and no writes, retries nothing, and logs metadata
 (never content) to `bridge/bridge.log`.
 
 ## Repo layout
@@ -180,7 +202,7 @@ The bridge talks to localhost only, has no file or shell access, retries nothing
 
 **Does it work on Intel Macs, Linux or Windows?** Untested. The installer is macOS only.
 
-**Can the bridge read my files?** No. It only receives text that Claude sends it, and it talks to localhost.
+**Can the bridge read my files?** Only through one read-only tool, `local_digest_files`, fenced to the folder you started `claude-local` in. It refuses your home folder, secrets (`.env`, keys, credentials), `.git` and `.ssh`, binaries, and anything outside the project (symlinks and `..` included). It never writes. The other tools only receive text that Claude sends them.
 
 **Why not LiteLLM or a router?** They target bigger machines and add moving parts. See `docs/architecture.md`.
 

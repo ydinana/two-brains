@@ -18,6 +18,11 @@ _ollama_up() {
   fi
 }
 
+# Plain Claude without the claude.ai connectors (Gmail, Notion, Drive and so on). Every connector adds
+# tool definitions to the start of each session. In our test that cost about 11K input tokens
+# per session (24.7K to 13.4K for a one word prompt). Use it for coding sessions that need no connectors.
+claude-lean() { ENABLE_CLAUDEAI_MCP_SERVERS=false claude "$@"; }
+
 # Claude plus local models. Claude Code on your normal plan, with the local helper loaded:
 # the bridge tools (--mcp-config) and the delegation rules (--append-system-prompt-file).
 # Bulk chores go to the local model; any failure falls back to Claude. Plain `claude` is untouched.

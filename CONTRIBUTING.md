@@ -11,7 +11,7 @@ Check `docs/troubleshooting.md`. When reporting a bug, include your Mac model an
 - Keep changes small and focused, with a clear description of what and why.
 - Run `bash -n install.sh shell/aliases.sh` and test `./install.sh` twice; it must stay safe to rerun.
 - Bridge changes: failures must still reach Claude as a tool error that ends with "Do this task yourself".
-- Never add content logging, network calls beyond localhost, or file/shell access to the bridge.
+- Never add content logging, network calls beyond localhost, shell access, or writes to the bridge. File reading stays in the one fenced, read-only tool (`local_digest_files`); keep its project folder fence and secret blocklist, and add a test for any change.
 - No personal paths, names or client data anywhere in the repo.
 
 ## Ideas that would help
