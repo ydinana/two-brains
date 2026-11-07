@@ -67,6 +67,10 @@ ai-stop() {
   ollama ps
 }
 
+# Delegation stats from the bridge log: calls, success and fallback rate, tokens handled locally.
+# Usage: ai-stats [DAYS]
+ai-stats() { python3 "$TWO_BRAINS_HOME/bridge/ai_stats.py" "$@"; }
+
 # Show what is installed and what is loaded in memory.
 ai-status() {
   echo "Installed:"; ollama list

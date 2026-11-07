@@ -103,6 +103,7 @@ Then open a new Terminal window. A two page guide to every run mode is in [docs/
 | `ollama run qwen3.5:9b-64k` | Plain chat with Qwen (or `qwen3.8:27b-mlx` for hard, short questions). No Claude. |
 | `ai-status` | Shows installed models, what is loaded in memory, and the one-model limit. |
 | `ai-stop` | Unloads every model to free RAM. |
+| `ai-stats` | Delegation stats from the bridge log: calls, success and fallback rate, tokens handled locally. `ai-stats 7` for the last 7 days. |
 
 Example prompts in a `claude-local` session:
 
@@ -114,7 +115,7 @@ Extract the invoice fields from these PDFs. local only  -> local tools only, sto
 
 Per project, add one line to that project's `CLAUDE.md`: `Delegation: off` or `Delegation: prefer`.
 
-To see which model did the work, check `tail -5 bridge/bridge.log` (model, seconds, success or failure per call).
+To see which model did the work, run `ai-stats` for totals or `tail -5 bridge/bridge.log` for the latest calls. Stats count bridge calls only: if Claude rewrites a weak draft after review, that is not logged.
 
 ## Privacy model
 
@@ -161,7 +162,7 @@ The bridge talks to localhost only, has no file or shell access, retries nothing
 |---|---|
 | `install.sh` | Idempotent installer |
 | `shell/aliases.sh` | `claude-private`, `ai-stop`, `ai-status` |
-| `bridge/` | The MCP server and its requirements |
+| `bridge/` | The MCP server, its requirements, and `ai_stats.py` |
 | `claude/` | Delegation rules and the private rules example |
 | `ollama/` | Modelfile and the login item that limits Ollama to one loaded model |
 | `scripts/` | Space for Python automations that call Ollama directly, with no Claude involved |
